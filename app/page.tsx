@@ -890,9 +890,7 @@ export default function Home() {
             </div>
 
             {/* Sidebar Footer */}
-            <div className="p-4 border-t border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-mid)] h-14">
-              <span className="text-[10px] font-mono text-[var(--text-dim)]">v0.1.0 // Antigravity</span>
-              
+            <div className="p-4 border-t border-[var(--border-subtle)] flex items-center justify-end bg-[var(--bg-mid)] h-14">
               {/* Theme Toggle Button */}
               <button
                 onClick={() => setTheme(t => t === 'light' ? 'dark' : 'light')}
