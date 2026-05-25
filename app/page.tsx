@@ -646,6 +646,20 @@ export default function Home() {
         .send-btn svg { width:16px; height:16px; }
 
         .input-hint { font-size:11.5px; color:#2d3748; margin-top:7px; text-align:center; }
+
+        /* Fun taglines */
+        .fun-tagline {
+          font-size: 12px; color: #8b5cf6; margin-top: 6px; text-align: center;
+          font-weight: 500; letter-spacing: 0.3px;
+        }
+
+        /* Disclaimer */
+        .disclaimer {
+          font-size: 11px; color: #6b7280;
+          margin-top: 10px; text-align: center;
+          padding: 8px 12px; border-top: 1px solid rgba(255,255,255,0.05);
+          line-height: 1.5; font-style: italic;
+        }
       `}</style>
 
       {/* Hidden file inputs */}
@@ -864,6 +878,9 @@ export default function Home() {
               </div>
 
               <p className="input-hint">Enter to send · Shift+Enter new line · + to attach images or PDFs for RAG</p>
+              <p className="fun-tagline">✨ Made with fun by Karthik</p>
+              <p className="fun-tagline">🎯 Turn confusion into clarity — just ask</p>
+              <p className="disclaimer">🌱 I'm still learning — forgive my slip-ups!</p>
             </form>
           </div>
         </footer>
