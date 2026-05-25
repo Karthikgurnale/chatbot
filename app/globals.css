@@ -1,34 +1,41 @@
 @import "tailwindcss";
 
 :root {
-  --background: #070910;
-  --foreground: #f0f2ff;
-  --primary: #6366f1;
-  --primary-dark: #4f46e5;
-  --accent: #8b5cf6;
-  --accent-light: #a5b4fc;
-  --surface: #0d1117;
-  --surface-alt: #111827;
-  --border: #1f2937;
-  --success: #10b981;
-  --warning: #f59e0b;
-  --error: #ef4444;
+  /* Soft Light Theme */
+  --bg-deep: #f7f7f9;
+  --bg-mid: #ffffff;
+  --bg-hover: #f1f1f4;
+  --border-subtle: #e4e4e9;
+  --border-strong: #18181b;
+  --text-primary: #18181b;
+  --text-muted: #52525b;
+  --text-dim: #8b8d99;
+
+  --emerald: #10b981;
+  --amber: #f59e0b;
+  --red: #ef4444;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+[data-theme="dark"] {
+  /* Soft Dark Theme */
+  --bg-deep: #0a0b0d;
+  --bg-mid: #141519;
+  --bg-hover: #1e2025;
+  --border-subtle: #24262b;
+  --border-strong: #f4f4f7;
+  --text-primary: #f4f4f7;
+  --text-muted: #a1a1aa;
+  --text-dim: #5c5e69;
 }
 
 * {
   box-sizing: border-box;
 }
 
+/* Custom scrollbars */
 *::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 8px;
+  height: 8px;
 }
 
 *::-webkit-scrollbar-track {
@@ -36,24 +43,26 @@
 }
 
 *::-webkit-scrollbar-thumb {
-  background: #1e2533;
-  border-radius: 8px;
+  background: var(--border-subtle);
+  border-radius: 99px;
+  border: 2px solid transparent;
+  background-clip: content-box;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: #2d3748;
+  background: var(--text-dim);
+  border: 2px solid transparent;
+  background-clip: content-box;
 }
 
-html {
-  background: #070910;
-  color: var(--foreground);
-}
-
-body {
-  background: #070910;
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), sans-serif;
+html, body {
+  background: var(--bg-deep);
+  color: var(--text-primary);
   margin: 0;
   padding: 0;
   height: 100%;
+  transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
+
+

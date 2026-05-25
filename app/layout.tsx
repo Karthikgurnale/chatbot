@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AI Learning Assistant",
-  description: "Educational AI Chatbot - Learn and explore with an intelligent assistant",
+  title: "Knowledge Assistant",
+  description: "AI-powered knowledge assistant - Explore documents and get instant answers",
 };
 
 export default function RootLayout({
@@ -25,9 +25,10 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased bg-slate-950`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased bg-[var(--bg-deep)]`}
     >
-      <body className="min-h-full flex flex-col bg-slate-950 text-slate-100">{children}</body>
+      <body className="min-h-full flex flex-col bg-[var(--bg-deep)] text-[var(--text-primary)] transition-colors duration-200">{children}</body>
     </html>
   );
 }
+

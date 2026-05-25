@@ -53,6 +53,17 @@ export default function Home() {
   const [sessionId] = useState<string>(generateSessionId);
   const [uploadError, setUploadError] = useState<string>('');
 
+  // UI state
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [mockedChats] = useState([
+    { id: 'chat_1', title: 'Redesign chat interface', date: '2026-05-25' },
+    { id: 'chat_2', title: 'JS chunker implementation', date: '2026-05-24' },
+    { id: 'chat_3', title: 'PDF parsing using pdf-parse', date: '2026-05-22' },
+    { id: 'chat_4', title: 'Vector store queries', date: '2026-05-20' },
+    { id: 'chat_5', title: 'Next.js 16 breaking changes', date: '2026-05-18' },
+  ]);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -63,6 +74,21 @@ export default function Home() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
 
   useEffect(() => { scrollToBottom(); }, [messages]);
+
+  // Sync initial theme
+  useEffect(() => {
+    const saved = localStorage.getItem('theme') as 'light' | 'dark' | null;
+    if (saved) {
+      setTheme(saved);
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      setTheme('dark');
+    }
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -117,7 +143,6 @@ export default function Home() {
     setAttachedFiles((prev) => prev.filter((f) => f.id !== id));
 
   const removeLoadedDoc = async (docName: string) => {
-    // Optimistic removal from UI (server-side removal not needed for in-memory store)
     setLoadedDocs((prev) => prev.filter((d) => d.name !== docName));
   };
 
@@ -259,6 +284,21 @@ export default function Home() {
     }
   };
 
+  const startNewChat = () => {
+    setMessages([]);
+    setAttachedFiles([]);
+    setLoadedDocs([]);
+    setUploadError('');
+    setInput('');
+  };
+
+  const loadMockChat = (title: string) => {
+    setMessages([
+      { id: 'm1', role: 'user', content: `Load archived session: ${title}` },
+      { id: 'm2', role: 'assistant', content: `Loaded showcase data for "${title}". Chat persistence and database history loading is not fully enabled in this version.` }
+    ]);
+  };
+
   const canSubmit = !isLoading && !isUploading && (!!input.trim() || attachedFiles.length > 0);
 
   // ── Render ───────────────────────────────────────────────────────────────
@@ -266,399 +306,520 @@ export default function Home() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=Syne:wght@700;800&display=swap');
-
+        /* Base Reset */
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-        :root {
-          --bg-deep: #070910;
-          --bg-mid: #0d1117;
-          --bg-glass: rgba(255,255,255,0.03);
-          --border-subtle: rgba(255,255,255,0.07);
-          --border-glow: rgba(99,102,241,0.35);
-          --text-primary: #f0f2ff;
-          --text-muted: #6b7280;
-          --text-dim: #374151;
-          --indigo: #6366f1;
-          --violet: #8b5cf6;
-          --cyan: #22d3ee;
-          --emerald: #10b981;
-          --amber: #f59e0b;
-          --red: #ef4444;
-        }
-
-        .chat-root {
+        .chat-viewport {
           display: flex;
           flex-direction: column;
-          height: 100vh;
-          width: 100%;
-          background: var(--bg-deep);
-          font-family: 'DM Sans', sans-serif;
+          height: 100%;
           overflow: hidden;
         }
 
-        /* ─── Header ─────────────────────────────────── */
-        .header {
-          flex-shrink: 0;
-          border-bottom: 1px solid var(--border-subtle);
-          background: rgba(7,9,16,0.9);
-          backdrop-filter: blur(20px);
-          padding: 14px 24px;
-        }
-        .header-inner {
-          max-width: 760px;
-          margin: 0 auto;
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          flex-wrap: wrap;
-        }
-        .header-logo {
-          width: 36px; height: 36px;
-          border-radius: 10px;
-          background: linear-gradient(135deg, var(--indigo), var(--violet));
-          display: flex; align-items: center; justify-content: center;
-          font-size: 16px; flex-shrink: 0;
-          box-shadow: 0 0 18px rgba(99,102,241,0.4);
-        }
-        .header-title {
-          font-family: 'Syne', sans-serif;
-          font-size: 17px; font-weight: 800;
-          background: linear-gradient(90deg, #c7d2fe, #a5b4fc, #818cf8);
-          -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-          background-clip: text; letter-spacing: -0.3px;
-        }
-        .header-badge {
-          display: flex; align-items: center; gap: 5px;
-          font-size: 11px; color: var(--emerald);
-          background: rgba(16,185,129,0.1);
-          border: 1px solid rgba(16,185,129,0.2);
-          border-radius: 100px; padding: 3px 9px; margin-left: auto;
-        }
-        .header-badge::before {
-          content: ''; width: 6px; height: 6px; border-radius: 50%;
-          background: var(--emerald);
-          animation: pulse-dot 2s ease-in-out infinite;
-        }
-        @keyframes pulse-dot {
-          0%,100% { opacity:1; transform:scale(1); }
-          50% { opacity:0.5; transform:scale(0.8); }
-        }
-
-        /* Doc pills in header */
-        .doc-pills {
-          display: flex; flex-wrap: wrap; gap: 6px;
-          width: 100%; margin-top: 8px;
-        }
-        .doc-pill {
-          display: flex; align-items: center; gap: 6px;
-          padding: 4px 10px 4px 8px;
-          border-radius: 100px; font-size: 11.5px;
-          border: 1px solid rgba(99,102,241,0.25);
-          background: rgba(99,102,241,0.08); color: #a5b4fc;
-          cursor: default; user-select: none;
-          animation: pill-in 0.2s cubic-bezier(0.34,1.56,0.64,1) both;
-        }
-        @keyframes pill-in {
-          from { opacity:0; transform:scale(0.8); }
-          to   { opacity:1; transform:scale(1); }
-        }
-        .doc-pill-icon { font-size: 13px; }
-        .doc-pill-remove {
-          width: 14px; height: 14px; border-radius: 50%;
-          background: rgba(255,255,255,0.1); border: none;
-          color: #818cf8; font-size: 10px; cursor: pointer;
-          display: flex; align-items: center; justify-content: center;
-          transition: background 0.15s; line-height: 1;
-        }
-        .doc-pill-remove:hover { background: rgba(239,68,68,0.4); color: #fca5a5; }
-        .doc-count {
-          font-size: 10.5px; color: var(--text-muted);
-          padding: 4px 8px;
-          border-radius: 100px;
-          background: rgba(255,255,255,0.04);
-          border: 1px solid var(--border-subtle);
-          white-space: nowrap;
-        }
-
-        /* ─── Messages ───────────────────────────────── */
         .messages-area {
-          flex: 1; overflow-y: auto;
-          scrollbar-width: thin; scrollbar-color: #1e2533 transparent;
+          flex: 1;
+          overflow-y: auto;
+          background: var(--bg-deep);
         }
-        .messages-area::-webkit-scrollbar { width: 5px; }
-        .messages-area::-webkit-scrollbar-track { background: transparent; }
-        .messages-area::-webkit-scrollbar-thumb { background: #1e2533; border-radius: 8px; }
 
         .messages-inner {
-          max-width: 760px; margin: 0 auto;
-          padding: 32px 24px 16px;
-          display: flex; flex-direction: column; gap: 20px;
+          max-width: 720px;
+          margin: 0 auto;
+          padding: 40px 24px;
+          display: flex;
+          flex-direction: column;
+          gap: 28px;
         }
 
-        /* Empty state */
-        .empty-state {
-          display: flex; flex-direction: column; align-items: center;
-          justify-content: center; padding: 80px 24px; text-align: center;
+        /* Collapsible Sidebar Details */
+        .sidebar-container {
+          display: flex;
+          flex-direction: column;
+          height: 100%;
+          overflow: hidden;
+          background: var(--bg-mid);
         }
-        .empty-orb {
-          width: 76px; height: 76px; border-radius: 50%;
-          background: radial-gradient(circle at 35% 35%, rgba(99,102,241,0.3), transparent 70%),
-                      radial-gradient(circle at 65% 65%, rgba(139,92,246,0.2), transparent 70%);
-          border: 1px solid rgba(99,102,241,0.2);
-          display: flex; align-items: center; justify-content: center;
-          font-size: 30px; margin-bottom: 24px;
-          box-shadow: 0 0 60px rgba(99,102,241,0.12);
-          animation: float 4s ease-in-out infinite;
-        }
-        @keyframes float {
-          0%,100% { transform:translateY(0); }
-          50% { transform:translateY(-8px); }
-        }
-        .empty-title {
-          font-family: 'Syne', sans-serif;
-          font-size: 23px; font-weight: 800;
-          color: var(--text-primary); margin-bottom: 10px; letter-spacing: -0.5px;
-        }
-        .empty-subtitle {
-          font-size: 14px; color: var(--text-muted);
-          max-width: 340px; line-height: 1.6; margin-bottom: 28px;
-        }
-        .suggestion-chips { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; max-width:480px; }
-        .chip {
-          padding: 7px 14px; border-radius: 100px;
-          border: 1px solid var(--border-subtle); background: var(--bg-glass);
-          color: #9ca3af; font-size: 12.5px; cursor: pointer;
-          transition: all 0.2s; font-family: 'DM Sans', sans-serif;
-        }
-        .chip:hover { border-color: rgba(99,102,241,0.4); color: #c7d2fe; background: rgba(99,102,241,0.07); transform: translateY(-1px); }
-
-        /* Message rows */
-        .msg-row { display:flex; gap:12px; animation: msg-in 0.25s ease both; }
-        @keyframes msg-in { from{opacity:0;transform:translateY(8px);} to{opacity:1;transform:translateY(0);} }
-        .msg-row.user { justify-content:flex-end; }
-
-        .avatar {
-          width: 30px; height: 30px; border-radius: 8px;
-          flex-shrink: 0; display:flex; align-items:center; justify-content:center;
-          font-size: 14px; margin-top: 2px;
-        }
-        .avatar.bot { background: linear-gradient(135deg,var(--indigo),var(--violet)); box-shadow:0 0 12px rgba(99,102,241,0.3); }
-        .avatar.user-av { background: linear-gradient(135deg,#0ea5e9,var(--cyan)); box-shadow:0 0 12px rgba(34,211,238,0.2); }
-
-        .msg-content-wrap {
-          display:flex; flex-direction:column;
-          align-items:flex-start; gap:6px; max-width:580px;
-        }
-        .msg-content-wrap.user-side { align-items:flex-end; }
-
-        .bubble {
-          padding: 12px 16px; border-radius: 14px;
-          font-size: 14px; line-height: 1.65;
-          white-space: pre-wrap; word-break: break-word;
-        }
-        .bubble.user {
-          background: linear-gradient(135deg, var(--indigo), var(--violet));
-          color:#fff; border-bottom-right-radius:4px;
-          box-shadow: 0 4px 20px rgba(99,102,241,0.25);
-        }
-        .bubble.assistant {
-          background: rgba(255,255,255,0.04);
+        
+        .new-session-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          width: 100%;
+          padding: 10px 16px;
+          font-family: var(--font-geist-sans), sans-serif;
+          font-size: 13px;
+          font-weight: 500;
           border: 1px solid var(--border-subtle);
-          color: #dde1f0; border-bottom-left-radius:4px;
-          backdrop-filter: blur(8px);
+          background: var(--bg-deep);
+          color: var(--text-primary);
+          cursor: pointer;
+          border-radius: 8px;
+          transition: all 0.2s ease;
+        }
+        .new-session-btn:hover {
+          border-color: var(--border-strong);
+          background: var(--bg-hover);
         }
 
-        /* RAG badge */
-        .rag-badge {
-          display: inline-flex; align-items: center; gap: 4px;
-          font-size: 10.5px; color: #6ee7b7;
-          background: rgba(16,185,129,0.08);
-          border: 1px solid rgba(16,185,129,0.2);
-          border-radius: 100px; padding: 2px 8px;
+        .session-list-item {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          width: 100%;
+          padding: 10px 14px;
+          background: var(--bg-deep);
+          border: 1px solid var(--border-subtle);
+          border-radius: 8px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          text-align: left;
+        }
+        .session-list-item:hover {
+          background: var(--bg-hover);
+          border-color: var(--border-strong);
+        }
+        .session-list-title {
+          font-size: 12.5px;
+          font-weight: 500;
+          color: var(--text-primary);
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          width: 100%;
+        }
+        .session-list-date {
+          font-family: var(--font-geist-mono), monospace;
+          font-size: 9.5px;
+          color: var(--text-dim);
+          margin-top: 3px;
+        }
+
+        /* Empty State Suggestions */
+        .empty-state {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 60px 0;
+          text-align: center;
+          max-width: 580px;
+          margin: 0 auto;
+        }
+        
+        .empty-icon-box {
+          width: 48px;
+          height: 48px;
+          border-radius: 12px;
+          border: 1px solid var(--border-subtle);
+          background: var(--bg-mid);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: var(--text-primary);
+          margin-bottom: 20px;
+        }
+
+        .empty-title {
+          font-family: var(--font-geist-sans), sans-serif;
+          font-size: 22px;
+          font-weight: 600;
+          margin-bottom: 8px;
+          letter-spacing: -0.3px;
+          color: var(--text-primary);
+        }
+        
+        .empty-subtitle {
+          font-size: 14px;
+          line-height: 1.6;
+          color: var(--text-muted);
+          margin-bottom: 32px;
+        }
+
+        .suggestion-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 10px;
+          width: 100%;
+        }
+        @media(max-width: 520px) {
+          .suggestion-grid { grid-template-columns: 1fr; }
+        }
+        
+        .suggestion-card {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 12px 16px;
+          background: var(--bg-mid);
+          border: 1px solid var(--border-subtle);
+          border-radius: 8px;
+          cursor: pointer;
+          text-align: left;
+          transition: all 0.2s ease;
+          font-size: 13px;
+          color: var(--text-primary);
+          font-family: var(--font-geist-sans), sans-serif;
+        }
+        .suggestion-card:hover {
+          border-color: var(--text-muted);
+          background: var(--bg-hover);
+          transform: translateY(-1px);
+        }
+        .suggestion-arrow {
+          color: var(--text-dim);
+          font-size: 11px;
+          transition: transform 0.2s ease;
+        }
+        .suggestion-card:hover .suggestion-arrow {
+          color: var(--text-primary);
+          transform: translateX(2px);
+        }
+
+        /* Message Stream */
+        .msg-row {
+          display: flex;
+          gap: 14px;
+          align-items: flex-start;
+          animation: msg-fade-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        @keyframes msg-fade-in {
+          from { opacity: 0; transform: translateY(6px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .msg-row.user {
+          flex-direction: row-reverse;
+        }
+
+        .avatar-circle {
+          width: 32px;
+          height: 32px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          border-radius: 50%;
+          border: 1px solid var(--border-subtle);
+          background: var(--bg-mid);
+          color: var(--text-primary);
+        }
+        .msg-row.user .avatar-circle {
+          border-color: var(--border-strong);
+          background: var(--text-primary);
+          color: var(--bg-deep);
+        }
+
+        .msg-wrapper {
+          display: flex;
+          flex-direction: column;
+          max-width: calc(100% - 46px);
+          gap: 6px;
+        }
+        .msg-row.user .msg-wrapper {
+          align-items: flex-end;
+        }
+
+        .msg-bubble {
+          font-size: 14.5px;
+          line-height: 1.6;
+          padding: 12px 18px;
+          border-radius: 12px;
+          background: var(--bg-mid);
+          color: var(--text-primary);
+          white-space: pre-wrap;
+          word-break: break-word;
+          border: 1px solid var(--border-subtle);
+        }
+        .msg-row.user .msg-bubble {
+          background: var(--bg-hover);
+          color: var(--text-primary);
+          border-bottom-right-radius: 2px;
+        }
+        .msg-row.assistant .msg-bubble {
+          background: var(--bg-mid);
+          border-bottom-left-radius: 2px;
+        }
+
+        /* Message File Attachments */
+        .msg-attachments {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-bottom: 4px;
+        }
+        .msg-attachment-img {
+          max-width: 280px;
+          max-height: 180px;
+          object-fit: cover;
+          border-radius: 8px;
+          border: 1px solid var(--border-subtle);
+        }
+        .msg-attachment-pdf {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 14px;
+          border-radius: 8px;
+          border: 1px solid var(--border-subtle);
+          background: var(--bg-mid);
+          font-family: var(--font-geist-mono), monospace;
+          font-size: 11.5px;
+          color: var(--text-primary);
+        }
+
+        .rag-indicator {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          font-family: var(--font-geist-mono), monospace;
+          font-size: 10px;
+          color: var(--emerald);
           margin-top: 4px;
         }
 
-        /* Attachments in messages */
-        .msg-attachments { display:flex; flex-wrap:wrap; gap:8px; }
-        .msg-img-preview {
-          width: 130px; height: 90px; object-fit:cover;
-          border-radius:8px; border:1px solid rgba(255,255,255,0.1);
-        }
-        .msg-pdf-badge {
-          display:flex; align-items:center; gap:6px;
-          padding: 6px 10px; border-radius:8px;
-          background: rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.2);
-          color:#fca5a5; font-size:12px; max-width:200px;
-        }
-
-        /* Loading dots */
-        .loading-row { display:flex; gap:12px; align-items:flex-start; animation: msg-in 0.25s ease both; }
+        /* Loading */
         .loading-bubble {
-          padding:14px 18px; border-radius:14px; border-bottom-left-radius:4px;
-          background: rgba(255,255,255,0.04); border:1px solid var(--border-subtle);
-          display:flex; gap:6px; align-items:center;
+          display: flex;
+          gap: 4px;
+          align-items: center;
+          padding: 12px 18px;
+          border-radius: 12px;
+          border-bottom-left-radius: 2px;
+          border: 1px solid var(--border-subtle);
+          background: var(--bg-mid);
         }
-        .dot { width:7px; height:7px; border-radius:50%; background:var(--indigo); animation:bounce-dot 1.2s ease-in-out infinite; }
-        .dot:nth-child(2){animation-delay:.15s;} .dot:nth-child(3){animation-delay:.3s;}
-        @keyframes bounce-dot { 0%,80%,100%{transform:translateY(0);opacity:0.4;} 40%{transform:translateY(-6px);opacity:1;} }
+        .dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background: var(--text-muted);
+          animation: bounce 1.2s infinite ease-in-out;
+        }
+        .dot:nth-child(2) { animation-delay: 0.15s; }
+        .dot:nth-child(3) { animation-delay: 0.3s; }
+        @keyframes bounce {
+          0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+          40% { transform: scale(1); opacity: 1; }
+        }
 
-        /* ─── Input Footer ────────────────────────────── */
+        /* Floating Input Container */
         .input-footer {
-          flex-shrink: 0; padding: 14px 24px 18px;
-          background: rgba(7,9,16,0.92);
-          backdrop-filter: blur(20px);
-          border-top: 1px solid var(--border-subtle);
+          padding: 16px 24px 28px;
+          background: var(--bg-deep);
         }
-        .input-footer-inner { max-width: 760px; margin: 0 auto; }
-
-        /* Upload progress bar */
-        .upload-status {
-          display:flex; align-items:center; gap:8px;
-          font-size:12.5px; color: #a5b4fc;
-          background: rgba(99,102,241,0.08);
-          border: 1px solid rgba(99,102,241,0.2);
-          border-radius: 10px; padding: 8px 12px;
-          margin-bottom: 10px; animation: msg-in 0.2s ease both;
+        .input-footer-inner {
+          max-width: 720px;
+          margin: 0 auto;
         }
-        .upload-spinner {
-          width:14px; height:14px; border-radius:50%;
-          border: 2px solid rgba(99,102,241,0.3); border-top-color: var(--indigo);
-          animation: spin 0.7s linear infinite; flex-shrink:0;
+        
+        .input-card {
+          display: flex;
+          flex-direction: column;
+          border: 1px solid var(--border-subtle);
+          background: var(--bg-mid);
+          border-radius: 14px;
+          overflow: visible; /* Needed for absolute dropdown attach-menu */
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.02);
+          transition: border-color 0.2s, box-shadow 0.2s;
         }
-        @keyframes spin { to{transform:rotate(360deg);} }
-
-        /* Error message */
-        .upload-error {
-          display:flex; align-items:center; gap:8px;
-          font-size:12.5px; color:#fca5a5;
-          background: rgba(239,68,68,0.08);
-          border:1px solid rgba(239,68,68,0.2);
-          border-radius:10px; padding:8px 12px;
-          margin-bottom:10px; animation: msg-in 0.2s ease both;
+        .input-card:focus-within {
+          border-color: var(--text-muted);
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
         }
 
-        /* Attachment preview strip */
-        .attach-strip { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
-        .attach-item {
-          position:relative; border-radius:10px; overflow:hidden;
-          border:1px solid rgba(255,255,255,0.1);
-          background:rgba(255,255,255,0.04);
-          animation:pop-in 0.2s cubic-bezier(0.34,1.56,0.64,1) both;
+        .input-row {
+          display: flex;
+          align-items: flex-end;
+          padding: 8px 12px;
+          gap: 8px;
+          width: 100%;
+          position: relative;
         }
-        @keyframes pop-in { from{opacity:0;transform:scale(0.7);} to{opacity:1;transform:scale(1);} }
-        .attach-item-img { width:64px; height:64px; object-fit:cover; display:block; }
-        .attach-item-pdf {
-          width:64px; height:64px;
-          display:flex; flex-direction:column; align-items:center; justify-content:center;
-          gap:3px; background:rgba(239,68,68,0.1);
+        
+        .plus-attach-btn {
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          border: 1px dashed var(--border-subtle);
+          background: var(--bg-deep);
+          color: var(--text-muted);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.2s;
+          flex-shrink: 0;
+          margin-bottom: 2px;
         }
-        .attach-item-pdf-icon { font-size:22px; }
-        .attach-item-pdf-label { font-size:9px; color:#fca5a5; max-width:56px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:center; padding:0 4px; }
-        .attach-remove {
-          position:absolute; top:3px; right:3px;
-          width:18px; height:18px; border-radius:50%;
-          background:rgba(0,0,0,0.75); border:none; color:#fff;
-          font-size:11px; cursor:pointer;
-          display:flex; align-items:center; justify-content:center;
-          transition:background 0.15s; line-height:1;
+        .plus-attach-btn:hover, .plus-attach-btn.active {
+          border-color: var(--border-strong);
+          color: var(--text-primary);
+          background: var(--bg-hover);
         }
-        .attach-remove:hover { background:rgba(239,68,68,0.8); }
-
-        /* Input box */
-        .input-box {
-          display:flex; align-items:flex-end; gap:0;
-          background:rgba(255,255,255,0.035);
-          border:1px solid var(--border-subtle);
-          border-radius:18px; padding:6px 6px 6px 4px;
-          transition:border-color 0.25s,box-shadow 0.25s;
-          box-shadow:0 2px 20px rgba(0,0,0,0.4),inset 0 1px 0 rgba(255,255,255,0.03);
-        }
-        .input-box:focus-within {
-          border-color:var(--border-glow);
-          box-shadow:0 2px 20px rgba(0,0,0,0.4),0 0 0 3px rgba(99,102,241,0.08),inset 0 1px 0 rgba(255,255,255,0.04);
-        }
-
-        /* + Attach button */
-        .attach-btn-wrap { position:relative; flex-shrink:0; }
-        .attach-btn {
-          width:36px; height:36px; border-radius:12px;
-          border:1px dashed rgba(99,102,241,0.3);
-          background:rgba(99,102,241,0.05); color:#818cf8;
-          display:flex; align-items:center; justify-content:center;
-          cursor:pointer; transition:all 0.2s;
-          margin:0 2px; flex-shrink:0;
-        }
-        .attach-btn:hover { background:rgba(99,102,241,0.15); border-color:rgba(99,102,241,0.6); color:#a5b4fc; transform:scale(1.05); }
-        .attach-btn.active { background:rgba(99,102,241,0.2); border-style:solid; border-color:rgba(99,102,241,0.6); color:#a5b4fc; }
-
-        /* Dropdown */
-        .attach-menu {
-          position:absolute; bottom:calc(100% + 8px); left:0;
-          background:#0f1218; border:1px solid rgba(255,255,255,0.1);
-          border-radius:14px; padding:6px; min-width:185px;
-          box-shadow:0 8px 32px rgba(0,0,0,0.6),0 0 0 1px rgba(255,255,255,0.04);
-          animation:menu-pop 0.15s cubic-bezier(0.34,1.56,0.64,1) both; z-index:50;
-        }
-        @keyframes menu-pop { from{opacity:0;transform:translateY(6px) scale(0.95);} to{opacity:1;transform:translateY(0) scale(1);} }
-        .attach-menu-item {
-          display:flex; align-items:center; gap:10px;
-          padding:10px 12px; border-radius:10px; cursor:pointer;
-          color:#d1d5db; font-size:13.5px; transition:all 0.15s;
-          border:none; background:none; width:100%; text-align:left;
-          font-family:'DM Sans',sans-serif;
-        }
-        .attach-menu-item:hover { background:rgba(255,255,255,0.06); color:#f9fafb; }
-        .attach-menu-icon {
-          width:30px; height:30px; border-radius:8px;
-          display:flex; align-items:center; justify-content:center;
-          font-size:15px; flex-shrink:0;
-        }
-        .attach-menu-icon.img { background:rgba(34,211,238,0.12); }
-        .attach-menu-icon.pdf { background:rgba(239,68,68,0.12); }
-        .attach-menu-label { display:flex; flex-direction:column; gap:1px; }
-        .attach-menu-label span:first-child { font-weight:500; }
-        .attach-menu-label span:last-child { font-size:11px; color:var(--text-muted); }
-
-        /* Textarea */
+        
         .chat-textarea {
-          flex:1; background:transparent; border:none; outline:none;
-          color:var(--text-primary); font-size:14.5px;
-          font-family:'DM Sans',sans-serif; line-height:1.55;
-          resize:none; padding:8px 10px 8px 8px;
-          min-height:36px; max-height:160px; overflow-y:auto;
-          scrollbar-width:none;
+          flex: 1;
+          background: transparent;
+          border: none;
+          outline: none;
+          font-family: var(--font-geist-sans), sans-serif;
+          font-size: 14.5px;
+          line-height: 1.5;
+          resize: none;
+          padding: 6px 4px;
+          min-height: 32px;
+          max-height: 160px;
+          color: var(--text-primary);
         }
-        .chat-textarea::-webkit-scrollbar { display:none; }
-        .chat-textarea::placeholder { color:#374151; }
-        .chat-textarea:disabled { opacity:0.5; }
-
-        /* Send button */
-        .send-btn {
-          width:38px; height:38px; border-radius:12px; border:none;
-          background:linear-gradient(135deg,var(--indigo),var(--violet));
-          color:#fff; display:flex; align-items:center; justify-content:center;
-          cursor:pointer; transition:all 0.2s; flex-shrink:0;
-          box-shadow:0 2px 12px rgba(99,102,241,0.35);
+        .chat-textarea::placeholder {
+          color: var(--text-dim);
         }
-        .send-btn:hover:not(:disabled) { transform:scale(1.05); box-shadow:0 4px 20px rgba(99,102,241,0.5); }
-        .send-btn:disabled { opacity:0.3; cursor:not-allowed; box-shadow:none; }
-        .send-btn svg { width:16px; height:16px; }
-
-        .input-hint { font-size:11.5px; color:#2d3748; margin-top:7px; text-align:center; }
-
-        /* Fun taglines */
-        .fun-tagline {
-          font-size: 12px; color: #8b5cf6; margin-top: 6px; text-align: center;
-          font-weight: 500; letter-spacing: 0.3px;
+        
+        .send-btn-solid {
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          background: var(--text-primary);
+          color: var(--bg-deep);
+          border: none;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.15s;
+          flex-shrink: 0;
+          margin-bottom: 2px;
+        }
+        .send-btn-solid:hover:not(:disabled) {
+          opacity: 0.9;
+          transform: scale(1.05);
+        }
+        .send-btn-solid:disabled {
+          opacity: 0.2;
+          cursor: not-allowed;
         }
 
-        /* Disclaimer */
-        .disclaimer {
-          font-size: 11px; color: #6b7280;
-          margin-top: 10px; text-align: center;
-          padding: 8px 12px; border-top: 1px solid rgba(255,255,255,0.05);
-          line-height: 1.5; font-style: italic;
+        .input-footer-hint {
+          margin-top: 8px;
+          font-family: var(--font-geist-mono), monospace;
+          font-size: 9px;
+          color: var(--text-dim);
+          text-align: center;
+        }
+        
+        /* Dropdown upload items (Opens upwards) */
+        .attach-menu {
+          position: absolute;
+          bottom: calc(100% + 8px);
+          left: 0;
+          background: var(--bg-mid);
+          border: 1px solid var(--border-subtle);
+          border-radius: 8px;
+          padding: 6px;
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          z-index: 50;
+          box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+          min-width: 150px;
+        }
+        .attach-menu-item {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 12px;
+          border: none;
+          border-radius: 6px;
+          background: transparent;
+          color: var(--text-primary);
+          font-family: var(--font-geist-sans), sans-serif;
+          font-size: 12.5px;
+          cursor: pointer;
+          text-align: left;
+          width: 100%;
+        }
+        .attach-menu-item:hover {
+          background: var(--bg-hover);
+        }
+        
+        /* Pills progress */
+        .upload-status-pills {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          margin-bottom: 10px;
+        }
+        .upload-status-item {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 12px;
+          border-radius: 8px;
+          font-family: var(--font-geist-sans), sans-serif;
+          font-size: 12px;
+          border: 1px solid var(--border-subtle);
+          background: var(--bg-mid);
+          color: var(--text-primary);
+        }
+        .upload-status-item.error {
+          border-color: var(--red);
+          color: var(--red);
+          background: rgba(239, 68, 68, 0.02);
+        }
+        .spinner {
+          width: 12px;
+          height: 12px;
+          border: 2px solid var(--text-dim);
+          border-top-color: var(--text-primary);
+          border-radius: 50%;
+          animation: spin 0.6s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .attach-strip {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-bottom: 10px;
+        }
+        .attach-pill {
+          position: relative;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 6px 12px;
+          border-radius: 8px;
+          border: 1px solid var(--border-subtle);
+          background: var(--bg-mid);
+          font-family: var(--font-geist-sans), sans-serif;
+          font-size: 12px;
+          color: var(--text-primary);
+        }
+        .attach-pill-img {
+          width: 18px;
+          height: 18px;
+          object-fit: cover;
+          border-radius: 3px;
+        }
+        .attach-pill-remove {
+          background: none;
+          border: none;
+          color: var(--text-dim);
+          cursor: pointer;
+          font-size: 14px;
+          line-height: 1;
+          padding-left: 4px;
+        }
+        .attach-pill-remove:hover {
+          color: var(--red);
+        }
+
+        .scrollbar-none::-webkit-scrollbar {
+          display: none;
+        }
+        .scrollbar-none {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
         }
       `}</style>
 
@@ -668,223 +829,387 @@ export default function Home() {
       <input ref={fileInputRef} type="file" accept=".pdf,application/pdf" multiple style={{ display:'none' }}
         onChange={(e) => handleFileSelect(e.target.files, 'pdf')} id="pdf-file-input" />
 
-      <main className="chat-root">
-        {/* ── Header ───────────────────────────────────────────────── */}
-        <header className="header">
-          <div className="header-inner">
-            <div className="header-logo">🤖</div>
-            <div className="header-title">AI Learning Assistant</div>
-            <div className="header-badge">Live</div>
+      <div className="flex h-screen w-screen overflow-hidden bg-[var(--bg-deep)] text-[var(--text-primary)] font-sans antialiased">
+        
+        {/* Collapsible Sidebar */}
+        <aside className={`flex flex-col border-r border-[var(--border-subtle)] bg-[var(--bg-mid)] transition-all duration-200 ease-in-out ${sidebarOpen ? 'w-[260px]' : 'w-0 pointer-events-none md:w-0'}`}>
+          <div className="sidebar-container w-[260px]">
+            
+            {/* Sidebar Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-subtle)] h-14">
+              <span className="font-mono text-xs tracking-wider uppercase font-semibold text-[var(--text-primary)]">
+                chatbot // rag
+              </span>
+              <button 
+                onClick={() => setSidebarOpen(false)}
+                className="p-1.5 rounded-md hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-all cursor-pointer"
+                title="Collapse sidebar"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
 
-            {/* RAG indicator */}
-            {loadedDocs.length > 0 && (
-              <span className="doc-count">📚 {loadedDocs.length} doc{loadedDocs.length > 1 ? 's' : ''} loaded</span>
-            )}
+            {/* New Chat Button */}
+            <div className="p-4">
+              <button 
+                onClick={startNewChat}
+                className="new-session-btn"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                New Session
+              </button>
+            </div>
+
+            {/* Previous Chats List */}
+            <div className="flex-1 overflow-y-auto px-3 scrollbar-none">
+              <div className="text-[10px] font-mono uppercase tracking-widest text-[var(--text-dim)] mb-2.5 px-2">
+                Recent sessions
+              </div>
+              <div className="flex flex-col gap-2">
+                {mockedChats.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => loadMockChat(c.title)}
+                    className="session-list-item"
+                  >
+                    <span className="session-list-title">
+                      {c.title}
+                    </span>
+                    <span className="session-list-date">
+                      {c.date}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Sidebar Footer */}
+            <div className="p-4 border-t border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-mid)] h-14">
+              <span className="text-[10px] font-mono text-[var(--text-dim)]">v0.1.0 // Antigravity</span>
+              
+              {/* Theme Toggle Button */}
+              <button
+                onClick={() => setTheme(t => t === 'light' ? 'dark' : 'light')}
+                className="p-2 rounded-lg border border-[var(--border-subtle)] hover:border-var(--text-muted) bg-transparent text-[var(--text-primary)] transition-all flex items-center justify-center cursor-pointer hover:bg-[var(--bg-hover)]"
+                title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+              >
+                {theme === 'light' ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+                  </svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="4"/>
+                    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+                  </svg>
+                )}
+              </button>
+            </div>
           </div>
+        </aside>
 
-          {/* Document pills */}
+        {/* Main Content Area */}
+        <main className="flex-1 flex flex-col min-w-0 bg-[var(--bg-deep)]">
+          
+          {/* Top Header - Premium Polish */}
+          <header className="flex items-center justify-between px-6 border-b border-[var(--border-subtle)] h-14 bg-[var(--bg-mid)] backdrop-blur-md bg-opacity-95">
+            <div className="flex items-center gap-3">
+              {!sidebarOpen && (
+                <button
+                  onClick={() => setSidebarOpen(true)}
+                  className="p-1.5 rounded-md border border-[var(--border-subtle)] hover:bg-[var(--bg-hover)] text-[var(--text-primary)] transition-all cursor-pointer flex items-center justify-center"
+                  title="Show sidebar"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="3" y1="12" x2="21" y2="12" />
+                    <line x1="3" y1="6" x2="21" y2="6" />
+                    <line x1="3" y1="18" x2="21" y2="18" />
+                  </svg>
+                </button>
+              )}
+              <div className="flex items-center gap-2">
+                <span className="font-sans font-bold text-sm tracking-tight text-[var(--text-primary)]">
+                  Knowledge Assistant
+                </span>
+                <span className="text-[9px] font-mono tracking-wider text-[var(--text-muted)] border border-[var(--border-subtle)] px-1.5 py-0.5 rounded bg-[var(--bg-deep)]">
+                  RAG ENGINE
+                </span>
+              </div>
+            </div>
+
+            {/* Model Tag & Status */}
+            <div className="flex items-center gap-3">
+              <span className="hidden sm:inline-block text-[10px] font-mono text-[var(--text-muted)] border border-[var(--border-subtle)] bg-[var(--bg-deep)] px-2.5 py-0.5 rounded-full">
+                model: groq/llama-4-scout
+              </span>
+              
+              {loadedDocs.length > 0 && (
+                <span className="text-[10px] font-mono text-[var(--text-primary)] border border-[var(--border-subtle)] bg-[var(--bg-deep)] px-2 py-0.5 rounded-full">
+                  docs: {loadedDocs.length}
+                </span>
+              )}
+              <span className="flex items-center gap-1.5 text-[10px] font-mono text-[var(--text-muted)] border border-[var(--border-subtle)] bg-[var(--bg-deep)] px-2.5 py-0.5 rounded-full">
+                <span className="h-1.5 w-1.5 rounded-full bg-[var(--emerald)]" />
+                ready
+              </span>
+            </div>
+          </header>
+
+          {/* Loaded Document Pills below header */}
           {loadedDocs.length > 0 && (
-            <div className="doc-pills" style={{ maxWidth: 760, marginLeft: 'auto', marginRight: 'auto' }}>
+            <div className="flex flex-wrap gap-2 px-6 py-2.5 border-b border-[var(--border-subtle)] bg-[var(--bg-mid)] overflow-x-auto">
               {loadedDocs.map((doc) => (
-                <div key={doc.name} className="doc-pill">
-                  <span className="doc-pill-icon">{doc.type === 'pdf' ? '📄' : '🖼️'}</span>
-                  <span style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.name}</span>
-                  <span style={{ fontSize: 10, color: '#6b7280', marginLeft: 2 }}>·{doc.chunkCount}c</span>
-                  <button className="doc-pill-remove" onClick={() => removeLoadedDoc(doc.name)} type="button" aria-label={`Remove ${doc.name}`}>×</button>
+                <div key={doc.name} className="flex items-center gap-1.5 px-2.5 py-0.5 border border-[var(--border-subtle)] bg-[var(--bg-deep)] text-[11px] font-mono text-[var(--text-primary)] rounded-md">
+                  <span>{doc.type === 'pdf' ? '📄' : '🖼️'}</span>
+                  <span className="max-w-[140px] truncate">{doc.name}</span>
+                  <span className="text-[9px] text-[var(--text-dim)]">({doc.chunkCount} chk)</span>
+                  <button 
+                    onClick={() => removeLoadedDoc(doc.name)}
+                    className="text-[var(--text-dim)] hover:text-[var(--red)] transition-colors ml-1 cursor-pointer"
+                    aria-label={`Remove ${doc.name}`}
+                  >
+                    ×
+                  </button>
                 </div>
               ))}
             </div>
           )}
-        </header>
 
-        {/* ── Messages ─────────────────────────────────────────────── */}
-        <div className="messages-area">
-          <div className="messages-inner">
-            {messages.length === 0 ? (
-              <div className="empty-state">
-                <div className="empty-orb">✦</div>
-                <h1 className="empty-title">What can I help you with?</h1>
-                <p className="empty-subtitle">
-                  Upload a PDF or image — I&apos;ll read it and answer questions from its content using RAG.
-                </p>
-                <div className="suggestion-chips">
-                  {[
-                    '📚 Explain a concept',
-                    '💻 Help with code',
-                    '📄 Summarise this PDF',
-                    '🖼️ Analyse an image',
-                    '🧠 Brainstorm ideas',
-                    '✅ Solve a problem',
-                  ].map((chip) => (
-                    <button key={chip} className="chip" onClick={() => setInput(chip.slice(3).trim())}>
-                      {chip}
-                    </button>
+          {/* Messages Viewport */}
+          <div className="messages-area">
+            <div className="messages-inner">
+              {messages.length === 0 ? (
+                
+                /* Refined Empty State Dashboard */
+                <div className="empty-state">
+                  <div className="empty-icon-box">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="12 2 22 7 22 17 12 22 2 17 2 7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+                      <circle cx="12" cy="12" r="2.5" fill="none" stroke="currentColor" strokeWidth="2" />
+                    </svg>
+                  </div>
+                  <h1 className="empty-title">
+                    Knowledge Assistant
+                  </h1>
+                  <p className="empty-subtitle">
+                    A clean space to analyze your images and documents. Drag or click the plus (+) button below to upload PDFs or pictures, then query using RAG.
+                  </p>
+                  
+                  <div className="suggestion-grid">
+                    {[
+                      'Explain a concept',
+                      'Help with code',
+                      'Summarise this PDF',
+                      'Analyse an image',
+                      'Brainstorm ideas',
+                      'Solve a problem',
+                    ].map((chip) => (
+                      <button key={chip} className="suggestion-card" onClick={() => setInput(chip)}>
+                        <span>{chip}</span>
+                        <span className="suggestion-arrow">→</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Messages rendering */}
+                  {messages.map((m) => (
+                    <div key={m.id} className={`msg-row ${m.role}`}>
+                      
+                      {/* Modern Round Avatars */}
+                      <div className="avatar-circle" title={m.role === 'assistant' ? 'Assistant' : 'User'}>
+                        {m.role === 'assistant' ? (
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                            <polygon points="12 2 22 7 22 17 12 22 2 17 2 7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+                            <circle cx="12" cy="12" r="2.5" fill="none" stroke="currentColor" strokeWidth="2" />
+                          </svg>
+                        ) : (
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                            <circle cx="12" cy="7" r="4" />
+                          </svg>
+                        )}
+                      </div>
+
+                      {/* Content Wrap */}
+                      <div className="msg-wrapper">
+                        
+                        {/* Attachments */}
+                        {m.attachments && m.attachments.length > 0 && (
+                          <div className="msg-attachments">
+                            {m.attachments.map((att) =>
+                              att.type === 'image' && att.preview ? (
+                                <img key={att.id} src={att.preview} alt={att.name} className="msg-attachment-img" />
+                              ) : (
+                                <div key={att.id} className="msg-attachment-pdf">
+                                  <span>📄</span>
+                                  <div style={{ overflow:'hidden' }}>
+                                    <div style={{ fontWeight: 550, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:220 }}>{att.name}</div>
+                                    <div style={{ fontSize:9.5, color:'var(--text-dim)', marginTop: 2 }}>{att.size}</div>
+                                  </div>
+                                </div>
+                              )
+                            )}
+                          </div>
+                        )}
+
+                        {/* Text Content */}
+                        {m.content && <div className="msg-bubble">{m.content}</div>}
+
+                        {/* RAG Label */}
+                        {m.role === 'assistant' && m.usedRAG && (
+                          <span className="rag-indicator">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" fill="currentColor" />
+                            </svg>
+                            RAG Contextual Answer
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Loading */}
+                  {isLoading && (
+                    <div className="loading-row msg-row assistant">
+                      <div className="avatar-circle" title="Assistant">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          <polygon points="12 2 22 7 22 17 12 22 2 17 2 7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+                          <circle cx="12" cy="12" r="2.5" fill="none" stroke="currentColor" strokeWidth="2" />
+                        </svg>
+                      </div>
+                      <div className="msg-wrapper">
+                        <div className="loading-bubble">
+                          <div className="dot" /><div className="dot" /><div className="dot" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div ref={messagesEndRef} />
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Floating Input Footer Bar */}
+          <footer className="input-footer">
+            <div className="input-footer-inner">
+              
+              {/* Progress and status alerts */}
+              {(isUploading || uploadError) && (
+                <div className="upload-status-pills">
+                  {isUploading && (
+                    <div className="upload-status-item">
+                      <div className="spinner" />
+                      <span>{uploadProgress || 'Processing document…'}</span>
+                    </div>
+                  )}
+                  {uploadError && (
+                    <div className="upload-status-item error">
+                      <span>⚠️</span>
+                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{uploadError}</span>
+                      <button onClick={() => setUploadError('')} style={{ background:'none', border:'none', color:'var(--red)', cursor:'pointer', fontSize:14 }}>×</button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Attachments preview strip */}
+              {attachedFiles.length > 0 && (
+                <div className="attach-strip">
+                  {attachedFiles.map((f) => (
+                    <div key={f.id} className="attach-pill">
+                      {f.type === 'image' && f.preview ? (
+                        <img src={f.preview} alt={f.name} className="attach-pill-img" />
+                      ) : (
+                        <span>📄</span>
+                      )}
+                      <span style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
+                      <button className="attach-pill-remove" onClick={() => removeAttachment(f.id)} type="button" aria-label="Remove attachment">×</button>
+                    </div>
                   ))}
                 </div>
-              </div>
-            ) : (
-              <>
-                {messages.map((m) => (
-                  <div key={m.id} className={`msg-row ${m.role}`}>
-                    {m.role === 'assistant' && <div className="avatar bot">🤖</div>}
+              )}
 
-                    <div className={`msg-content-wrap ${m.role === 'user' ? 'user-side' : ''}`}>
-                      {/* Attachments */}
-                      {m.attachments && m.attachments.length > 0 && (
-                        <div className="msg-attachments">
-                          {m.attachments.map((att) =>
-                            att.type === 'image' && att.preview ? (
-                              <img key={att.id} src={att.preview} alt={att.name} className="msg-img-preview" />
-                            ) : (
-                              <div key={att.id} className="msg-pdf-badge">
-                                <span>📄</span>
-                                <div style={{ overflow:'hidden' }}>
-                                  <div style={{ fontSize:12, fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:130 }}>{att.name}</div>
-                                  <div style={{ fontSize:10, color:'#9ca3af' }}>{att.size}</div>
-                                </div>
-                              </div>
-                            )
-                          )}
+              {/* Input Card Container */}
+              <form onSubmit={handleSubmit}>
+                <div className="input-card">
+                  
+                  {/* Unified Input Row */}
+                  <div className="input-row">
+                    
+                    {/* circular dashed plus (+) button */}
+                    <div className="relative flex items-center" ref={attachMenuRef}>
+                      <button
+                        type="button"
+                        className={`plus-attach-btn ${showAttachMenu ? 'active' : ''}`}
+                        onClick={() => setShowAttachMenu((v) => !v)}
+                        disabled={isUploading || isLoading}
+                        id="attach-toggle-btn"
+                        aria-label="Attach file"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <line x1="12" y1="5" x2="12" y2="19" />
+                          <line x1="5" y1="12" x2="19" y2="12" />
+                        </svg>
+                      </button>
+
+                      {/* Dropdown upload links */}
+                      {showAttachMenu && (
+                        <div className="attach-menu">
+                          <button className="attach-menu-item" type="button" onClick={() => { imageInputRef.current?.click(); setShowAttachMenu(false); }} id="attach-image-btn">
+                            <span>🖼️</span> Image File
+                          </button>
+                          <button className="attach-menu-item" type="button" onClick={() => { fileInputRef.current?.click(); setShowAttachMenu(false); }} id="attach-pdf-btn">
+                            <span>📄</span> PDF Document
+                          </button>
                         </div>
                       )}
+                    </div>
 
-                      {/* Bubble */}
-                      {m.content && <div className={`bubble ${m.role}`}>{m.content}</div>}
+                    {/* Textarea */}
+                    <textarea
+                      ref={textareaRef}
+                      className="chat-textarea"
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder={loadedDocs.length > 0 ? 'Ask about your loaded files…' : 'Type a query or upload a file…'}
+                      disabled={isLoading || isUploading}
+                      rows={1}
+                      id="chat-input"
+                    />
 
-                      {/* RAG label */}
-                      {m.role === 'assistant' && m.usedRAG && (
-                        <span className="rag-badge">⚡ Answered from your documents</span>
+                    {/* Send Button */}
+                    <button type="submit" className="send-btn-solid" disabled={!canSubmit} id="send-btn">
+                      {isLoading || isUploading ? (
+                        <div className="spinner" style={{ borderTopColor: 'var(--bg-mid)', width: 10, height: 10 }} />
+                      ) : (
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="22" y1="2" x2="11" y2="13" />
+                          <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                        </svg>
                       )}
-                    </div>
-
-                    {m.role === 'user' && <div className="avatar user-av">👤</div>}
+                    </button>
                   </div>
-                ))}
-
-                {isLoading && (
-                  <div className="loading-row">
-                    <div className="avatar bot">🤖</div>
-                    <div className="loading-bubble">
-                      <div className="dot" /><div className="dot" /><div className="dot" />
-                    </div>
-                  </div>
-                )}
-
-                <div ref={messagesEndRef} />
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* ── Input Footer ──────────────────────────────────────────── */}
-        <footer className="input-footer">
-          <div className="input-footer-inner">
-
-            {/* Upload progress */}
-            {isUploading && (
-              <div className="upload-status">
-                <div className="upload-spinner" />
-                {uploadProgress || 'Processing document…'}
-              </div>
-            )}
-
-            {/* Upload error */}
-            {uploadError && (
-              <div className="upload-error">
-                <span>⚠️</span>
-                <span>{uploadError}</span>
-                <button onClick={() => setUploadError('')} style={{ marginLeft:'auto', background:'none', border:'none', color:'#fca5a5', cursor:'pointer', fontSize:13 }}>×</button>
-              </div>
-            )}
-
-            {/* Attachment preview strip */}
-            {attachedFiles.length > 0 && (
-              <div className="attach-strip">
-                {attachedFiles.map((f) => (
-                  <div key={f.id} className="attach-item">
-                    {f.type === 'image' && f.preview ? (
-                      <img src={f.preview} alt={f.name} className="attach-item-img" />
-                    ) : (
-                      <div className="attach-item-pdf">
-                        <span className="attach-item-pdf-icon">📄</span>
-                        <span className="attach-item-pdf-label">{f.name}</span>
-                      </div>
-                    )}
-                    <button className="attach-remove" onClick={() => removeAttachment(f.id)} type="button" aria-label="Remove">×</button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit}>
-              <div className="input-box">
-                {/* + Button */}
-                <div className="attach-btn-wrap" ref={attachMenuRef}>
-                  <button
-                    type="button"
-                    className={`attach-btn${showAttachMenu ? ' active' : ''}`}
-                    onClick={() => setShowAttachMenu((v) => !v)}
-                    aria-label="Attach file"
-                    id="attach-toggle-btn"
-                    disabled={isUploading || isLoading}
-                  >
-                    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                      <line x1="7.5" y1="1" x2="7.5" y2="14" /><line x1="1" y1="7.5" x2="14" y2="7.5" />
-                    </svg>
-                  </button>
-
-                  {showAttachMenu && (
-                    <div className="attach-menu">
-                      <button className="attach-menu-item" type="button" onClick={() => imageInputRef.current?.click()} id="attach-image-btn">
-                        <div className="attach-menu-icon img">🖼️</div>
-                        <div className="attach-menu-label"><span>Upload Image</span><span>PNG, JPG, WEBP…</span></div>
-                      </button>
-                      <button className="attach-menu-item" type="button" onClick={() => fileInputRef.current?.click()} id="attach-pdf-btn">
-                        <div className="attach-menu-icon pdf">📄</div>
-                        <div className="attach-menu-label"><span>Upload PDF</span><span>PDF documents</span></div>
-                      </button>
-                    </div>
-                  )}
                 </div>
 
-                {/* Textarea */}
-                <textarea
-                  ref={textareaRef}
-                  className="chat-textarea"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder={loadedDocs.length > 0 ? 'Ask about your documents…' : 'Ask anything, or upload a PDF / image…'}
-                  disabled={isLoading || isUploading}
-                  rows={1}
-                  id="chat-input"
-                />
-
-                {/* Send */}
-                <button type="submit" className="send-btn" disabled={!canSubmit} aria-label="Send" id="send-btn">
-                  {isLoading || isUploading ? (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                      <circle cx="12" cy="12" r="10" strokeOpacity="0.3" />
-                      <path d="M12 2a10 10 0 0 1 10 10">
-                        <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite" />
-                      </path>
-                    </svg>
-                  ) : (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
-                    </svg>
-                  )}
-                </button>
-              </div>
-
-              <p className="input-hint">Enter to send · Shift+Enter new line · + to attach images or PDFs for RAG</p>
-              <p className="fun-tagline">✨ Made with fun by Karthik</p>
-              <p className="fun-tagline">🎯 Turn confusion into clarity — just ask</p>
-              <p className="disclaimer">🌱 I'm still learning — forgive my slip-ups!</p>
-            </form>
-          </div>
-        </footer>
-      </main>
+                <div className="input-footer-hint">
+                  Press Enter to send · Shift+Enter for new line · Attach documents for contextual RAG analysis
+                </div>
+              </form>
+            </div>
+          </footer>
+        </main>
+      </div>
     </>
   );
 }
