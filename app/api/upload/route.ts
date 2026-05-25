@@ -5,6 +5,78 @@ import { addChunks } from '@/lib/vectorStore';
 
 export const runtime = 'nodejs';
 
+// Polyfill for pdf-parse
+// @ts-ignore
+if (typeof global.DOMMatrix === 'undefined') {
+  // @ts-ignore
+  global.DOMMatrix = class DOMMatrix {
+    a = 1;
+    b = 0;
+    c = 0;
+    d = 1;
+    e = 0;
+    f = 0;
+    constructor() {}
+    multiply() { return this; }
+    inverse() { return this; }
+    translate() { return this; }
+    scale() { return this; }
+    scaleNonUniform() { return this; }
+    scaleNonUniformSelf() { return this; }
+    rotate() { return this; }
+    rotateFromVector() { return this; }
+    rotateAxisAngle() { return this; }
+    skewX() { return this; }
+    skewY() { return this; }
+    multiplySelf() { return this; }
+    preMultiplySelf() { return this; }
+    translateSelf() { return this; }
+    scaleSelf() { return this; }
+    rotateSelf() { return this; }
+    rotateFromVectorSelf() { return this; }
+    rotateAxisAngleSelf() { return this; }
+    skewXSelf() { return this; }
+    skewYSelf() { return this; }
+    flipX() { return this; }
+    flipY() { return this; }
+    get is2D() { return true; }
+    get isIdentity() { return true; }
+    toJSON() { return {}; }
+    toString() { return 'DOMMatrix()'; }
+  };
+}
+
+// @ts-ignore
+if (typeof global.ImageData === 'undefined') {
+  // @ts-ignore
+  global.ImageData = class ImageData {
+    constructor(public data: Uint8ClampedArray, public width: number, public height: number) {}
+  };
+}
+
+// @ts-ignore
+if (typeof global.Path2D === 'undefined') {
+  // @ts-ignore
+  global.Path2D = class Path2D {
+    constructor() {}
+    addPath() {}
+    closePath() {}
+    moveTo() {}
+    lineTo() {}
+    bezierCurveTo() {}
+    quadraticCurveTo() {}
+    arc() {}
+    arcTo() {}
+    ellipse() {}
+    rect() {}
+    fill() {}
+    stroke() {}
+    clip() {}
+    isPointInPath() { return false; }
+    isPointInStroke() { return false; }
+  };
+}
+
 // Increase body size limit for file uploads (Next.js 16 App Router)
 export const maxDuration = 60;
 
@@ -31,10 +103,20 @@ export async function POST(req: NextRequest) {
 
     // ── PDF Extraction ───────────────────────────────────────────────────────
     if (fileType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf')) {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const pdfParse = require('pdf-parse');
-      const parsed = await pdfParse(buffer);
-      rawText = parsed.text;
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        let pdfParse = require('pdf-parse');
+        // Handle both default export and direct export
+        if (pdfParse.default) {
+          pdfParse = pdfParse.default;
+        }
+        const parsed = await pdfParse(buffer);
+        rawText = parsed.text || parsed.content || '';
+      } catch (pdfErr) {
+        console.error('[PDF extraction error]', pdfErr);
+        // Fallback: use filename as content
+        rawText = `PDF file: ${fileName}. (PDF extraction failed)`;
+      }
     }
 
     // ── Image: send to Groq vision for OCR/description ──────────────────────
